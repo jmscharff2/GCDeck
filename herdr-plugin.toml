@@ -1,0 +1,37 @@
+# gcdeck as a Herdr plugin: `herdr plugin install jmscharff2/gcdeck` builds it and adds actions that open the
+# dashboard beside the pane you are working in, reading that project's .gcdeck.json.
+
+id = "gcdeck"
+name = "gcdeck"
+version = "0.1.0"
+# Plugin panes and actions, as tested; older releases may lack them.
+min_herdr_version = "0.9.3"
+description = "Dashboard for your Google Cloud environments: health, VMs, Cloud SQL, Cloud Run, GKE, deploys and logs"
+# It stops a command by signalling its process group, which Windows does not have.
+platforms = ["linux", "macos"]
+
+# Built at install time; Go is the only requirement.
+[[build]]
+command = ["go", "build", "-o", "gcdeck", "."]
+
+# The dashboard itself. It runs in the directory it is opened with (see the actions), so it finds that project's
+# .gcdeck.json, and falls back to ~/.config/gcdeck/config.json.
+[[panes]]
+id = "dashboard"
+title = "gcdeck"
+command = ["sh", "-c", "exec \"$HERDR_PLUGIN_ROOT/gcdeck\""]
+placement = "split"
+
+[[actions]]
+id = "open"
+title = "gcdeck: open beside this pane"
+description = "Open the gcdeck dashboard in a split, for the project in the active pane"
+contexts = ["global", "pane"]
+command = ["sh", "-c", "exec \"${HERDR_BIN_PATH:-herdr}\" plugin pane open --plugin gcdeck --entrypoint dashboard --placement split --direction right --cwd \"${HERDR_ACTIVE_PANE_CWD:-$HOME}\" --focus"]
+
+[[actions]]
+id = "open-tab"
+title = "gcdeck: open in a new tab"
+description = "Open the gcdeck dashboard in its own tab, for the project in the active pane"
+contexts = ["global", "pane"]
+command = ["sh", "-c", "exec \"${HERDR_BIN_PATH:-herdr}\" plugin pane open --plugin gcdeck --entrypoint dashboard --placement tab --cwd \"${HERDR_ACTIVE_PANE_CWD:-$HOME}\" --focus"]
