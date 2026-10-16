@@ -316,6 +316,11 @@ What it does not protect against: anything that already runs as you. A program t
 - **A card says an API is not enabled, or permission was denied**: gcdeck can only see what your gcloud account
   can see. Remove that resource from the config, or get `roles/viewer` on the project.
 - **No CI or deploy panel**: gcdeck could not find a GitHub repo. Set `github_repo`, and check `gh auth status`.
+- **"GitHub rate limit reached"**: GitHub allows 5,000 API requests an hour per account, shared by everything
+  using your login (gh, other tools, every gcdeck window). gcdeck asks GitHub with the response's ETag, and an
+  unchanged answer (304) does not count, so a quiet dashboard uses almost none of that. When the limit is reached
+  anyway, gcdeck stops asking until the reset time it shows, then carries on. Below 300 requests left, it refreshes
+  GitHub once a minute. `gh api rate_limit --jq .resources.core` shows what is left.
 - **`gcdeck check`** prints every resolved command without running anything.
 
 ## Development

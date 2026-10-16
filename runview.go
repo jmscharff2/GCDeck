@@ -13,34 +13,34 @@ type step struct {
 	Number      int       `json:"number"`
 	Status      string    `json:"status"`
 	Conclusion  string    `json:"conclusion"`
-	StartedAt   time.Time `json:"startedAt"`
-	CompletedAt time.Time `json:"completedAt"`
+	StartedAt   time.Time `json:"started_at"`
+	CompletedAt time.Time `json:"completed_at"`
 }
 
 type jobDetail struct {
-	ID          int64     `json:"databaseId"`
+	ID          int64     `json:"id"`
 	Name        string    `json:"name"`
 	Status      string    `json:"status"`
 	Conclusion  string    `json:"conclusion"`
-	StartedAt   time.Time `json:"startedAt"`
-	CompletedAt time.Time `json:"completedAt"`
+	StartedAt   time.Time `json:"started_at"`
+	CompletedAt time.Time `json:"completed_at"`
 	Steps       []step    `json:"steps"`
-	URL         string    `json:"url"`
+	URL         string    `json:"html_url"`
 }
 
 type runDetail struct {
 	Status     string      `json:"status"`
 	Conclusion string      `json:"conclusion"`
-	SHA        string      `json:"headSha"`
-	Branch     string      `json:"headBranch"`
+	SHA        string      `json:"head_sha"`
+	Branch     string      `json:"head_branch"`
 	Event      string      `json:"event"`
-	Title      string      `json:"displayTitle"`
-	Workflow   string      `json:"workflowName"`
-	Attempt    int         `json:"attempt"`
-	Created    time.Time   `json:"createdAt"`
-	Updated    time.Time   `json:"updatedAt"`
-	URL        string      `json:"url"`
-	Jobs       []jobDetail `json:"jobs"`
+	Title      string      `json:"display_title"`
+	Workflow   string      `json:"name"`
+	Attempt    int         `json:"run_attempt"`
+	Created    time.Time   `json:"created_at"`
+	Updated    time.Time   `json:"updated_at"`
+	URL        string      `json:"html_url"`
+	Jobs       []jobDetail `json:"-"`
 }
 
 type runDataMsg struct {
@@ -92,12 +92,13 @@ func (v *runView) fetch() tea.Cmd {
 	id, repo, runID := v.id, v.repo, v.runID
 	return func() tea.Msg {
 		var d runDetail
-		err := runJSON(&d, "gh", "run", "view", fmt.Sprint(runID), "-R", repo, "--json",
-			"status,conclusion,headSha,headBranch,event,displayTitle,workflowName,attempt,createdAt,updatedAt,url,jobs")
+		err := ghGet(fmt.Sprintf("repos/%s/actions/runs/%d", repo, runID), &d)
+		if err == nil {
+			d.Jobs, err = runJobDetails(repo, runID)
+		}
 		if err != nil {
 			return runDataMsg{id: id, err: err}
 		}
-		cleanJobs(d.Jobs)
 		d.Status, d.Conclusion, d.SHA, d.Branch = clean(d.Status), clean(d.Conclusion), clean(d.SHA), clean(d.Branch)
 		d.Event, d.Title, d.Workflow, d.URL = clean(d.Event), clean(d.Title), clean(d.Workflow), clean(d.URL)
 		return runDataMsg{id: id, d: &d}

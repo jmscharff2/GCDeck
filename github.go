@@ -10,15 +10,15 @@ import (
 )
 
 type Run struct {
-	ID         int64     `json:"databaseId"`
+	ID         int64     `json:"id"`
 	Status     string    `json:"status"`
 	Conclusion string    `json:"conclusion"`
-	Branch     string    `json:"headBranch"`
-	SHA        string    `json:"headSha"`
+	Branch     string    `json:"head_branch"`
+	SHA        string    `json:"head_sha"`
 	Event      string    `json:"event"`
-	Title      string    `json:"displayTitle"`
-	Created    time.Time `json:"createdAt"`
-	URL        string    `json:"url"`
+	Title      string    `json:"display_title"`
+	Created    time.Time `json:"created_at"`
+	URL        string    `json:"html_url"`
 
 	// Pending is set when the run has not reached the env's job yet, so it may or may not deploy this env.
 	Pending  bool          `json:"-"`
@@ -26,11 +26,11 @@ type Run struct {
 }
 
 type job struct {
-	Name        string    `json:"name"`
-	Status      string    `json:"status"`
-	Conclusion  string    `json:"conclusion"`
-	StartedAt   time.Time `json:"startedAt"`
-	CompletedAt time.Time `json:"completedAt"`
+	Name        string
+	Status      string
+	Conclusion  string
+	StartedAt   time.Time
+	CompletedAt time.Time
 }
 
 type Compare struct {
@@ -38,19 +38,19 @@ type Compare struct {
 	Behind int `json:"behind_by"`
 }
 
-const runFields = "databaseId,status,conclusion,headBranch,headSha,event,displayTitle,createdAt,url"
-
 func fetchRuns(repo, workflow, branch string, limit int) ([]Run, error) {
-	args := []string{"run", "list", "-R", repo, "--workflow", workflow, "--limit", fmt.Sprint(limit), "--json", runFields}
+	path := fmt.Sprintf("repos/%s/actions/workflows/%s/runs?per_page=%d", repo, url.PathEscape(workflow), limit)
 	if branch != "" {
-		args = append(args, "--branch", branch)
+		path += "&branch=" + url.QueryEscape(branch)
 	}
-	var runs []Run
-	err := runJSON(&runs, "gh", args...)
-	for i := range runs {
-		cleanRun(&runs[i])
+	var resp struct {
+		Runs []Run `json:"workflow_runs"`
 	}
-	return runs, err
+	err := ghGet(path, &resp)
+	for i := range resp.Runs {
+		cleanRun(&resp.Runs[i])
+	}
+	return resp.Runs, err
 }
 
 // matchMode decides how a deploy run is attributed to env e.
@@ -79,22 +79,20 @@ func runJobs(repo string, r Run) ([]job, error) {
 	if ok {
 		return cached, nil
 	}
-	var resp struct {
-		Jobs []job `json:"jobs"`
-	}
-	if err := runJSON(&resp, "gh", "run", "view", fmt.Sprint(r.ID), "-R", repo, "--json", "jobs"); err != nil {
+	details, err := runJobDetails(repo, r.ID)
+	if err != nil {
 		return nil, err
 	}
-	for i := range resp.Jobs {
-		j := &resp.Jobs[i]
-		j.Name, j.Status, j.Conclusion = clean(j.Name), clean(j.Status), clean(j.Conclusion)
+	jobs := make([]job, len(details))
+	for i, d := range details {
+		jobs[i] = job{Name: d.Name, Status: d.Status, Conclusion: d.Conclusion, StartedAt: d.StartedAt, CompletedAt: d.CompletedAt}
 	}
 	if r.Status == "completed" {
 		jobsMu.Lock()
-		jobsCache[r.ID] = resp.Jobs
+		jobsCache[r.ID] = jobs
 		jobsMu.Unlock()
 	}
-	return resp.Jobs, nil
+	return jobs, nil
 }
 
 // fetchDeploys returns the recent deploy runs for env e, newest first.
@@ -206,7 +204,8 @@ func jobDuration(j job) time.Duration {
 
 func fetchCompare(repo string, p *Promote) (Compare, error) {
 	var c Compare
-	err := runJSON(&c, "gh", "api", fmt.Sprintf("repos/%s/compare/%s...%s", repo, url.PathEscape(p.To), url.PathEscape(p.From)))
+	// One commit per page is enough: only the counts are read.
+	err := ghGet(fmt.Sprintf("repos/%s/compare/%s...%s?per_page=1", repo, url.PathEscape(p.To), url.PathEscape(p.From)), &c)
 	return c, err
 }
 

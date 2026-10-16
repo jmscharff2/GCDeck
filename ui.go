@@ -573,6 +573,11 @@ func (m model) View() string {
 	if who := m.authExpired(); who != "" {
 		b.WriteString(sBad.Render(fmt.Sprintf(" ⚠ %s login expired. Press a to sign in, then r.", who)) + "\n")
 	}
+	if m.hasGitHub() {
+		if note := ghBudget(); note != "" {
+			b.WriteString(sWarn.Render(" ⚠ "+note) + "\n")
+		}
+	}
 
 	var cards []string
 	if e.HealthURL != "" {
