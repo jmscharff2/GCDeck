@@ -1,6 +1,5 @@
 # Every pull request and every push to main: formatting, vet, the tests (with the race detector, since gcdeck fetches
-# off the UI goroutine), and a build for each platform the Herdr plugin supports. The live test needs a GitHub token,
-# so it stays off here.
+# off the UI goroutine), and a build for each platform the Herdr plugin supports.
 name: CI
 
 on:
