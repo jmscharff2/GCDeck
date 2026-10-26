@@ -49,11 +49,29 @@ func (p pipeline) active() bool {
 }
 
 func fetchHead(repo, branch string) (commitInfo, error) {
-	var c commitInfo
-	err := runJSON(&c, "gh", "api", fmt.Sprintf("repos/%s/commits/%s", repo, url.PathEscape(branch)), "--jq",
-		`{sha: .sha, message: (.commit.message | split("\n")[0]), author: (.author.login // .commit.author.name), date: .commit.author.date}`)
+	var resp struct {
+		SHA    string `json:"sha"`
+		Commit struct {
+			Message string `json:"message"`
+			Author  struct {
+				Name string    `json:"name"`
+				Date time.Time `json:"date"`
+			} `json:"author"`
+		} `json:"commit"`
+		Author *struct {
+			Login string `json:"login"`
+		} `json:"author"`
+	}
+	if err := ghGet(fmt.Sprintf("repos/%s/commits/%s", repo, url.PathEscape(branch)), &resp); err != nil {
+		return commitInfo{}, err
+	}
+	c := commitInfo{SHA: resp.SHA, Author: resp.Commit.Author.Name, Date: resp.Commit.Author.Date}
+	c.Message, _, _ = strings.Cut(resp.Commit.Message, "\n")
+	if resp.Author != nil && resp.Author.Login != "" {
+		c.Author = resp.Author.Login
+	}
 	c.SHA, c.Message, c.Author = clean(c.SHA), clean(c.Message), clean(c.Author)
-	return c, err
+	return c, nil
 }
 
 func fetchPipeline(cfg Config, e Env) (pipeline, error) {
@@ -169,7 +187,7 @@ func runJobDetails(repo string, id int64) ([]jobDetail, error) {
 	var resp struct {
 		Jobs []jobDetail `json:"jobs"`
 	}
-	err := runJSON(&resp, "gh", "run", "view", fmt.Sprint(id), "-R", repo, "--json", "jobs")
+	err := ghGet(fmt.Sprintf("repos/%s/actions/runs/%d/jobs?per_page=100", repo, id), &resp)
 	cleanJobs(resp.Jobs)
 	return resp.Jobs, err
 }
