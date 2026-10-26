@@ -172,7 +172,7 @@ func (v *runView) key(msg tea.KeyMsg) (bool, tea.Cmd) {
 	case "up", "k":
 		v.sel = max(0, v.sel-1)
 	case "down", "j":
-		v.sel = min(len(jobs)-1, v.sel+1)
+		v.sel = max(0, min(len(jobs)-1, v.sel+1))
 	case "enter", "l":
 		if v.sel < len(jobs) {
 			j := jobs[v.sel]
